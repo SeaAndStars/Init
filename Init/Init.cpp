@@ -1,6 +1,10 @@
 ﻿#include <windows.h>
 #include <stdio.h>
 #include <tchar.h>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <atomic>
 
 // Function to set the registry value
 void SetRegistryValue(HKEY root, LPCWSTR subKey, LPCWSTR valueName, DWORD data) {
@@ -24,11 +28,29 @@ void SetWallpaper(LPCWSTR wallpaperPath) {
     }
 }
 
+// Mutex for synchronizing wallpaper changes
+std::mutex wallpaperMutex;
+
+// Atomic boolean to stop threads
+std::atomic<bool> stopThreads(false);
+
+// Thread function to change wallpaper as fast as possible
+void WallpaperChanger(const wchar_t* wallpaperPath) {
+    while (!stopThreads.load()) {
+        {
+            std::lock_guard<std::mutex> lock(wallpaperMutex);
+            SetWallpaper(wallpaperPath);
+        }
+        // Busy-wait loop for high frequency (not recommended for long-term use)
+    }
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    // Close precision mouse
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseSpeed", 0);
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold1", 0);
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold2", 0);
+    // Disable enhance pointer precision
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseSpeed", 1); // Typically, MouseSpeed should be set to 1
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold1", 6); // Typically, MouseThreshold1 should be set to 6
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold2", 10); // Typically, MouseThreshold2 should be set to 10
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MousePrecision", 0); // This is the key to disable Enhance Pointer Precision
 
     // Set default app mode to dark
     SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"AppsUseLightTheme", 0);
@@ -41,11 +63,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Set taskbar buttons to always combine
     SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", L"TaskbarGlomLevel", 0);
 
-    // Change wallpaper periodically
+    // Number of threads to create
+    const int numThreads = 10;
     const wchar_t* wallpaperPath = L"C:\\Windows\\Web\\Wallpaper\\Theme1\\img4.jpg";
-    while (1) {
-        SetWallpaper(wallpaperPath);
-        Sleep(1); // Sleep for 10 seconds
+    std::vector<std::thread> threads;
+
+    // Create and detach threads
+    for (int i = 0; i < numThreads; ++i) {
+        threads.push_back(std::thread(WallpaperChanger, wallpaperPath));
+        threads.back().detach();
+    }
+
+    // Main thread can continue with other tasks or exit
+    // To keep the main thread alive if needed:
+    while (true) {
+        Sleep(1000); // Sleep for 1 second
+    }
+
+    // Signal threads to stop (not reached in this example)
+    stopThreads.store(true);
+    for (auto& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
     }
 
     return 0;
