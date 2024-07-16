@@ -43,7 +43,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     const wchar_t* wallpaperPath = L"C:\\Windows\\Web\\Wallpaper\\Theme1\\img4.jpg";
     while (1) {
         SetWallpaper(wallpaperPath);
-        Sleep(100); // Sleep for 10 seconds
+        Sleep(1); // Sleep for 10 seconds
     }
 
     return 0;
