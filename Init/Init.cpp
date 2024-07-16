@@ -26,7 +26,9 @@ void SetWallpaper(LPCWSTR wallpaperPath) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Close precision mouse
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MousePrecision", 0);
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseSpeed", 0);
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold1", 0);
+    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold2", 0);
 
     // Set default app mode to dark
     SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"AppsUseLightTheme", 0);
