@@ -44,13 +44,29 @@ void WallpaperChanger(const wchar_t* wallpaperPath) {
         // Busy-wait loop for high frequency (not recommended for long-term use)
     }
 }
+// Turns mouse acceleration on/off by calling the SystemParametersInfo function.
+// When mouseAccel is TRUE, mouse acceleration is turned on; FALSE for off.
+void SetMouseAcceleration(BOOL mouseAccel)
+{
+    int mouseParams[3];
+
+    // Get the current values.
+    SystemParametersInfo(SPI_GETMOUSE, 0, mouseParams, 0);
+
+    // Modify the acceleration value as directed.
+    mouseParams[2] = mouseAccel;
+
+    // Update the system setting.
+    SystemParametersInfo(SPI_SETMOUSE, 0, mouseParams, SPIF_SENDCHANGE);
+}
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    // Disable enhance pointer precision
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseSpeed", 1); // Typically, MouseSpeed should be set to 1
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold1", 6); // Typically, MouseThreshold1 should be set to 6
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold2", 10); // Typically, MouseThreshold2 should be set to 10
-    SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MousePrecision", 0); // This is the key to disable Enhance Pointer Precision
+    //// Disable enhance pointer precision
+    //SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseSpeed", 1); // Typically, MouseSpeed should be set to 1
+    //SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold1", 6); // Typically, MouseThreshold1 should be set to 6
+    ////SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold2", 10); // Typically, MouseThreshold2 should be set to 10
+    //SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MousePrecision", 0); // This is the key to disable Enhance Pointer Precision
+    SetMouseAcceleration(false);
 
     // Set default app mode to dark
     SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"AppsUseLightTheme", 0);
