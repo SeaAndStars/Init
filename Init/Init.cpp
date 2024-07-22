@@ -6,6 +6,13 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <windows.h>
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <chrono>
 
 // 终止指定名称的进程的函数
 void TerminateProcessByName(const std::wstring& processName) {
