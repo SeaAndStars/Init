@@ -4,14 +4,12 @@
 #include <string>
 #include <iostream>
 #include <thread>
-#include <mutex>
-#include <atomic>
 
-// 终止指定名称的进程的函数
+// Function to terminate a specific process by name
 void TerminateProcessByName(const std::wstring& processName) {
     HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnap == INVALID_HANDLE_VALUE) {
-        std::wcerr << L"创建快照失败" << std::endl;
+        std::wcerr << L"Failed to create snapshot" << std::endl;
         return;
     }
 
@@ -24,37 +22,72 @@ void TerminateProcessByName(const std::wstring& processName) {
                 HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
                 if (hProcess != NULL) {
                     if (TerminateProcess(hProcess, 0)) {
-                        std::wcout << L"已终止进程: " << processName << std::endl;
+                        std::wcout << L"Terminated process: " << processName << std::endl;
                     }
                     else {
-                        std::wcerr << L"终止进程失败: " << processName << std::endl;
+                        std::wcerr << L"Failed to terminate process: " << processName << std::endl;
                     }
                     CloseHandle(hProcess);
                 }
                 else {
-                    std::wcerr << L"打开进程失败: " << processName << std::endl;
+                    std::wcerr << L"Failed to open process: " << processName << std::endl;
                 }
             }
         } while (Process32Next(hSnap, &pe));
     }
     else {
-        std::wcerr << L"检索第一个进程失败" << std::endl;
+        std::wcerr << L"Failed to retrieve first process" << std::endl;
     }
 
     CloseHandle(hSnap);
 }
 
-// 持续监控并终止特定进程的函数
+// Function to check if Task Manager is running
+bool IsTaskManagerRunning() {
+    HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnap == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    PROCESSENTRY32 pe;
+    pe.dwSize = sizeof(PROCESSENTRY32);
+    bool isRunning = false;
+
+    if (Process32First(hSnap, &pe)) {
+        do {
+            if (std::wstring(pe.szExeFile) == L"Taskmgr.exe") {
+                isRunning = true;
+                break;
+            }
+        } while (Process32Next(hSnap, &pe));
+    }
+
+    CloseHandle(hSnap);
+    return isRunning;
+}
+
+// Function to restart Task Manager if it is not running
+void RestartTaskManagerIfNeeded() {
+    if (!IsTaskManagerRunning()) {
+        std::wcout << L"Task Manager is not running. Restarting Task Manager." << std::endl;
+        if (!ShellExecuteW(NULL, L"open", L"taskmgr.exe", NULL, NULL, SW_SHOWNORMAL)) {
+            std::wcerr << L"Failed to restart Task Manager" << std::endl;
+        }
+    }
+}
+
+// Function to monitor and terminate specific processes, and ensure Task Manager is running
 void MonitorAndTerminateProcesses(const std::vector<std::wstring>& processNames) {
     while (true) {
         for (const auto& processName : processNames) {
             TerminateProcessByName(processName);
         }
-        Sleep(1000); // 每秒轮询一次
+        RestartTaskManagerIfNeeded();
+        Sleep(1000); // Polling every second
     }
 }
 
-// 设置注册表值的函数
+// Registry value setting function
 void SetRegistryValue(HKEY root, LPCWSTR subKey, LPCWSTR valueName, DWORD data) {
     HKEY hKey;
     if (RegOpenKeyEx(root, subKey, 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS) {
@@ -62,104 +95,43 @@ void SetRegistryValue(HKEY root, LPCWSTR subKey, LPCWSTR valueName, DWORD data) 
         RegCloseKey(hKey);
     }
     else {
-        wprintf(L"无法打开注册表项: %s\n", subKey);
+        wprintf(L"Unable to open registry key: %s\n", subKey);
     }
 }
 
-// 更改壁纸的函数
-void SetWallpaper(LPCWSTR wallpaperPath) {
-    if (SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, (PVOID)wallpaperPath, SPIF_UPDATEINIFILE | SPIF_SENDCHANGE)) {
-        wprintf(L"壁纸已更改为: %s\n", wallpaperPath);
-    }
-    else {
-        wprintf(L"更改壁纸失败: %s\n", wallpaperPath);
-    }
-}
-
-// 用于同步壁纸更改的互斥锁
-std::mutex wallpaperMutex;
-
-// 原子布尔值，用于停止线程
-std::atomic<bool> stopThreads(false);
-
-// 更改壁纸的线程函数，尽可能快地更改壁纸
-void WallpaperChanger(const wchar_t* wallpaperPath) {
-    while (!stopThreads.load()) {
-        {
-            std::lock_guard<std::mutex> lock(wallpaperMutex);
-            SetWallpaper(wallpaperPath);
-        }
-        // 忙等待循环以高频率运行（不推荐长期使用）
-    }
-}
-
-// 设置鼠标加速开关的函数
+// Function to set mouse acceleration
 void SetMouseAcceleration(BOOL mouseAccel) {
     int mouseParams[3];
-
-    // 获取当前值
     SystemParametersInfo(SPI_GETMOUSE, 0, mouseParams, 0);
-
-    // 根据需要修改加速值
     mouseParams[2] = mouseAccel;
-
-    // 更新系统设置
     SystemParametersInfo(SPI_SETMOUSE, 0, mouseParams, SPIF_SENDCHANGE);
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    // 禁用增强指针精确度
-    // SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseSpeed", 1); // 通常，MouseSpeed 应设置为 1
-    // SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold1", 6); // 通常，MouseThreshold1 应设置为 6
-    // SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MouseThreshold2", 10); // 通常，MouseThreshold2 应设置为 10
-    // SetRegistryValue(HKEY_CURRENT_USER, L"Control Panel\\Mouse", L"MousePrecision", 0); // 这是禁用增强指针精确度的关键
+    // Disable enhanced pointer precision
     SetMouseAcceleration(false);
 
-    // 设置默认应用模式为深色模式
+    // Set dark mode for apps
     SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", L"AppsUseLightTheme", 0);
 
-    // 将默认浏览器设置为 Edge
-    SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\http\\UserChoice", L"ProgId", (DWORD)L"MSEdgeHTM");
-    SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice", L"ProgId", (DWORD)L"MSEdgeHTM");
-    SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\ftp\\UserChoice", L"ProgId", (DWORD)L"MSEdgeHTM");
-
-    // 设置任务栏按钮始终合并
+    // Set Taskbar buttons to always combine
     SetRegistryValue(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", L"TaskbarGlomLevel", 0);
 
-    // 要创建的线程数
-    const int numThreads = 10;
-    const wchar_t* wallpaperPath = L"C:\\Windows\\Web\\Wallpaper\\Theme1\\img4.jpg";
-    std::vector<std::thread> threads;
-
-    // 创建并分离线程
-    for (int i = 0; i < numThreads; ++i) {
-        threads.push_back(std::thread(WallpaperChanger, wallpaperPath));
-        threads.back().detach();
-    }
-
-    // 主线程可以继续执行其他任务或退出
-    // 为了让主线程保持活跃：
+    // Processes to terminate
     std::vector<std::wstring> processesToTerminate = {
         L"lwclient64.exe",
         L"lwfunctionbar64.exe",
-        L"lwhardware64.exe"
+        L"lwhardware64.exe",
+        L"lwBarClientApp32.exe"
     };
 
-    // 启动监控和终止线程
+    // Start monitoring and terminating specified processes, and restarting Task Manager if needed
     std::thread monitorThread(MonitorAndTerminateProcesses, processesToTerminate);
-    monitorThread.detach(); // 分离监控线程
+    monitorThread.detach();
 
-    // 保持主线程活跃
+    // Keep main thread active
     while (true) {
-        Sleep(1000); // 每秒休眠 1 秒
-    }
-
-    // 向线程发送停止信号（在本例中不会到达）
-    stopThreads.store(true);
-    for (auto& thread : threads) {
-        if (thread.joinable()) {
-            thread.join();
-        }
+        Sleep(1000);
     }
 
     return 0;
